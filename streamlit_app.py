@@ -1,46 +1,71 @@
-
 import streamlit as st
+from utils.load_data import load_benchmark_data
 from utils.calc_metrics import calculate_metrics
 from utils.go_nogo import calc_go_nogo
-from utils.load_data import get_cost_benchmarks
 
-st.set_page_config(page_title="Pre-Site Investment Evaluator", layout="wide")
+# ——— Apply Custom Styling ———
+def inject_custom_css():
+    st.markdown("""
+        <style>
+            .stApp {
+                background-color: #ffffff;
+            }
+            .stSlider > div > div {
+                background: #1d4ed8 !important;
+            }
+            .stButton>button {
+                background-color: #1d4ed8;
+                color: white;
+                border-radius: 4px;
+            }
+            .block-container {
+                padding: 2rem 2rem 2rem 2rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
+inject_custom_css()
+
+# ——— Title & Intro ———
 st.title("🏗️ Pre-Site Investment Evaluator")
-st.markdown("Simulate ROI, cap on land and Go/No-Go recommendation — MVP 2025")
+st.caption("Simulate ROI, cap on land and Go/No-Go recommendation — MVP 2025")
 
-# 1. Investment Inputs
+# ——— 1. Investment Inputs ———
 st.header("1. Investment Inputs")
-equity = st.number_input("💰 Equity Available (€)", value=500000, step=10000)
-project_horizon = st.slider("⏳ Project Horizon (Years)", 1, 15, 5)
-target_irr = st.slider("🎯 Target IRR (%)", 5.0, 25.0, 15.0)
 
-st.info("ℹ️ The model will use this information to simulate cash flows and evaluate viability.")
+equity = st.number_input("💰 Equity Available (€)", min_value=10000, value=500000, step=10000)
+horizon = st.slider("⏳ Project Horizon (Years)", 1, 15, value=5)
+target_irr = st.slider("🎯 Target IRR (%)", 5.0, 25.0, value=15.0, step=0.5)
 
-# 2. Development Use Mix
+st.info("ℹ️ The model will use these inputs to simulate cash flows and evaluate viability.")
+
+# ——— 2. Development Use Mix ———
 st.header("2. Development Use Mix")
-use_type = st.radio("Select development type:", ["🏘 Residential (IRR ~ 18–22%)", "🏨 Hospitality (IRR ~ 14–17%)", "🏙 Mixed-Use (IRR ~ 16–20%)"])
 
-# 3. Financial Evaluation
+benchmark_data = load_benchmark_data()
+
+selected_mix = st.radio("Select development type:", list(benchmark_data.keys()))
+benchmark_irr = benchmark_data[selected_mix]
+
+st.markdown(f"📊 **Benchmark IRR for {selected_mix}: ~ {benchmark_irr:.1f}%**  \n_(Based on historical data and regional trends)_")
+
+# ——— 3. Financial Evaluation ———
 st.header("3. Financial Evaluation")
-if st.button("🔍 Run Calculation"):
-    cap_on_land, metrics = calculate_metrics(equity, project_horizon, target_irr, use_type)
-    
-    st.subheader("🏷️ Cap on Land")
-    st.success(f"Maximum land acquisition price: €{cap_on_land:,.0f}")
+
+if st.button("📉 Run Calculation"):
+    metrics = calculate_metrics(
+        equity_amount=equity,
+        project_years=horizon,
+        irr_target=target_irr,
+        dev_type=selected_mix
+    )
+    recommendation = calc_go_nogo(metrics)
 
     st.subheader("📊 Financial Metrics")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("IRR", f"{metrics['irr']:.2%}")
-    col2.metric("NPV", f"€{metrics['npv']:,.0f}")
-    col3.metric("MIRR", f"{metrics['mirr']:.2%}")
-    col4.metric("P(Gain)", f"{metrics['p_gain']:.1%}")
+    st.write(metrics)
 
-    st.subheader("🚦 Recommendation")
-    go_nogo = calc_go_nogo(metrics, target_irr)
-    if go_nogo:
-        st.success("✅ Recommendation: GO")
-    else:
-        st.error("❌ Recommendation: NO-GO")
+    st.subheader("🚦 Go / No-Go Recommendation")
+    st.success("✅ GO: Project meets target criteria") if recommendation else st.error("🚫 NO-GO: Project below target thresholds")
 
+# ——— Footer ———
 st.caption("Prototype powered by Streamlit · Python · Staiger & ULI methods")
