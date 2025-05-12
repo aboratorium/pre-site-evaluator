@@ -14,12 +14,12 @@ st.markdown("""
         color: #FFFFFF;
     }
     .stSlider > div[data-baseweb="slider"] > div {
-        background: #1a1c23;
+        background: #20283E;
         padding: 10px;
         border-radius: 8px;
     }
     .stRadio > div {
-        background-color: #1a1c23;
+        background-color: #20283E;
         padding: 12px;
         border-radius: 8px;
     }
@@ -53,7 +53,7 @@ with col2:
     project_years = st.slider("⏳ Project Horizon (Years)", 1, 15, 5)
 
 target_irr = st.slider("🎯 Target IRR (%)", 5.0, 25.0, 15.0, step=0.5)
-st.markdown("<div class='info-box'>ℹ️ <b>Tip:</b> IRR (Internal Rate of Return) — это ожидаемая годовая доходность от проекта. Если не уверены, оставьте значение по умолчанию или используйте рыночный ориентир.</div>", unsafe_allow_html=True)
+st.markdown("<div class='info-box'>ℹ️ Tip: IRR (Internal Rate of Return) represents the expected annual return of the project. If unsure, leave the default value or use a market benchmark.</div>", unsafe_allow_html=True)
 
 st.markdown("<div class='info-box'>📊 The model will use these inputs to simulate cash flows and evaluate viability.</div>", unsafe_allow_html=True)
 
@@ -68,7 +68,6 @@ if dev_choice != "❓ I’m not sure yet":
     dev_key = dev_choice.split(" ")[1]
     st.markdown(f"<div class='info-box'>📈 Estimated market IRR for {dev_key}: {benchmark_data[dev_key]}%</div>", unsafe_allow_html=True)
 else:
-    # Suggest the best IRR from benchmarks
     best_use = max(benchmark_data, key=benchmark_data.get)
     st.markdown(f"<div class='info-box'>🔎 Based on current benchmarks, the most viable option is: <b>{best_use}</b> (IRR: {benchmark_data[best_use]}%)</div>", unsafe_allow_html=True)
 
@@ -76,28 +75,34 @@ else:
 st.subheader("3. Financial Evaluation")
 if st.button("🚀 Run Evaluation"):
     st.write("📡 Calculating financial metrics...")
-    
-    # Simulate input use
     metrics = calculate_metrics(equity_input, project_years, target_irr, dev_choice)
-
     st.success("✅ Metrics calculated!")
-    st.write(metrics)
-
-    # Sensitivity analysis
-    st.write("📊 Sensitivity Analysis")
-    sensitivity_df = run_sensitivity_analysis(metrics)
-    st.dataframe(sensitivity_df)
+    st.json(metrics)
 
     # Go/No-Go
     decision = calc_go_nogo(metrics)
     st.markdown(f"🧭 Go/No-Go Recommendation: **{decision}**")
 
-    # Monte Carlo
-    st.write("🎲 Running Monte Carlo simulation...")
-    simulation_results = run_monte_carlo_simulation(metrics)
-    st.line_chart(simulation_results)
+    # Sensitivity analysis
+    st.write("📊 Sensitivity Analysis")
+    try:
+        sensitivity_df = run_sensitivity_analysis(metrics)
+        st.dataframe(sensitivity_df)
+    except Exception as e:
+        st.error(f"❌ Error in sensitivity analysis: {e}")
 
-    # Optimization (if requested)
-    st.write("🧠 Optimizing project inputs...")
-    optimal = optimize_project(metrics)
-    st.json(optimal)
+    # Monte Carlo simulation
+    st.write("🎲 Monte Carlo Simulation")
+    try:
+        simulation = run_monte_carlo_simulation(metrics)
+        st.line_chart(simulation)
+    except Exception as e:
+        st.error(f"❌ Error in Monte Carlo simulation: {e}")
+
+    # Optimization
+    st.write("🧠 Optimization")
+    try:
+        optimal = optimize_project(metrics)
+        st.json(optimal)
+    except Exception as e:
+        st.error(f"❌ Error in optimization module: {e}")
