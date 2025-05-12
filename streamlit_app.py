@@ -1,89 +1,103 @@
 import streamlit as st
-from utils.load_data import load_benchmark_data
 from utils.calc_metrics import calculate_metrics
+from utils.load_data import load_benchmark_data
 from utils.go_nogo import calc_go_nogo
 from utils.sensitivity import run_sensitivity_analysis
 from utils.monte_carlo import run_monte_carlo_simulation
-from utils.solver import solve_optimal_inputs  # <-- корректный импорт
+from utils.solver import optimize_project
 
-# --- Custom Styling ---
-st.set_page_config(page_title="Pre-Site Evaluator", layout="wide")
-
-st.markdown(
-    """
+# --- CUSTOM CSS ---
+st.markdown("""
     <style>
     body {
-        background-color: #f9f9f9;
-        color: #222;
+        background-color: #0e1117;
+        color: #FFFFFF;
     }
-    .stSlider > div {
-        background: #dee2e6;
-        padding: 0.5rem;
-        border-radius: 0.5rem;
+    .stSlider > div[data-baseweb="slider"] > div {
+        background: #1a1c23;
+        padding: 10px;
+        border-radius: 8px;
+    }
+    .stRadio > div {
+        background-color: #1a1c23;
+        padding: 12px;
+        border-radius: 8px;
+    }
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    .info-box {
+        background-color: #1a2635;
+        padding: 1rem;
+        border-left: 5px solid #6c8cd5;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 6px;
     }
     </style>
-    """,
-    unsafe_allow_html=True
-)
+""", unsafe_allow_html=True)
 
-# --- App Title ---
+# --- TITLE & HEADER ---
 st.title("🏗️ Pre-Site Investment Evaluator")
 st.caption("Simulate ROI, cap on land and Go/No-Go recommendation — MVP 2025")
 
-# --- Section 1: Investment Inputs ---
-st.header("1. Investment Inputs")
+# === SECTION 1: Investment Inputs ===
+st.subheader("1. Investment Inputs")
+col1, col2 = st.columns([2, 2])
 
-equity = st.number_input("💰 Equity Available (€)", min_value=10000, step=50000, value=500000)
-
-col1, col2 = st.columns(2)
 with col1:
-    horizon = st.slider("⏳ Project Horizon (Years)", 1, 15, 5)
+    equity_input = st.number_input("💰 Equity Available (€)", value=500000, step=5000)
+
 with col2:
-    target_irr = st.slider("🎯 Target IRR (%)", 5.0, 25.0, 15.0, step=0.5)
-    st.caption("ℹ️ Tip: Set a realistic IRR target based on market benchmarks.")
+    project_years = st.slider("⏳ Project Horizon (Years)", 1, 15, 5)
 
-st.info("The model will use these inputs to simulate cash flows and evaluate viability.")
+target_irr = st.slider("🎯 Target IRR (%)", 5.0, 25.0, 15.0, step=0.5)
+st.markdown("<div class='info-box'>ℹ️ <b>Tip:</b> IRR (Internal Rate of Return) — это ожидаемая годовая доходность от проекта. Если не уверены, оставьте значение по умолчанию или используйте рыночный ориентир.</div>", unsafe_allow_html=True)
 
-# --- Section 2: Development Mix ---
-st.header("2. Development Use Mix")
+st.markdown("<div class='info-box'>📊 The model will use these inputs to simulate cash flows and evaluate viability.</div>", unsafe_allow_html=True)
+
+# === SECTION 2: Development Use Mix ===
+st.subheader("2. Development Use Mix")
+st.write("Select development type:")
+dev_options = ["🏠 Residential", "🏨 Hospitality", "🏙️ Mixed-Use", "❓ I’m not sure yet"]
+dev_choice = st.radio("", dev_options, index=0)
+
 benchmark_data = load_benchmark_data()
+if dev_choice != "❓ I’m not sure yet":
+    dev_key = dev_choice.split(" ")[1]
+    st.markdown(f"<div class='info-box'>📈 Estimated market IRR for {dev_key}: {benchmark_data[dev_key]}%</div>", unsafe_allow_html=True)
+else:
+    # Suggest the best IRR from benchmarks
+    best_use = max(benchmark_data, key=benchmark_data.get)
+    st.markdown(f"<div class='info-box'>🔎 Based on current benchmarks, the most viable option is: <b>{best_use}</b> (IRR: {benchmark_data[best_use]}%)</div>", unsafe_allow_html=True)
 
-project_type = st.radio("Select development type:", list(benchmark_data.keys()))
-st.caption(f"📊 Estimated market IRR for {project_type}: {benchmark_data[project_type]}%")
+# === SECTION 3: Financial Evaluation ===
+st.subheader("3. Financial Evaluation")
+if st.button("🚀 Run Evaluation"):
+    st.write("📡 Calculating financial metrics...")
+    
+    # Simulate input use
+    metrics = calculate_metrics(equity_input, project_years, target_irr, dev_choice)
 
-# --- Section 3: Evaluation ---
-st.header("3. Financial Evaluation")
+    st.success("✅ Metrics calculated!")
+    st.write(metrics)
 
-if st.button("📈 Run Calculation"):
-    irr = benchmark_data[project_type]
-    result = calculate_metrics(equity, horizon, irr)
+    # Sensitivity analysis
+    st.write("📊 Sensitivity Analysis")
+    sensitivity_df = run_sensitivity_analysis(metrics)
+    st.dataframe(sensitivity_df)
 
-    st.subheader("📊 Financial Metrics")
-    st.write(result)
+    # Go/No-Go
+    decision = calc_go_nogo(metrics)
+    st.markdown(f"🧭 Go/No-Go Recommendation: **{decision}**")
 
-    cap_land = result.get("Cap on Land", "N/A")
-    st.metric("🔹 Cap on Land (€)", f"{cap_land:,.0f}" if isinstance(cap_land, (int, float)) else cap_land)
+    # Monte Carlo
+    st.write("🎲 Running Monte Carlo simulation...")
+    simulation_results = run_monte_carlo_simulation(metrics)
+    st.line_chart(simulation_results)
 
-    st.subheader("🚦 Go / No-Go Recommendation")
-    recommendation = calc_go_nogo(result.get("IRR", 0), target_irr)
-    st.success(f"Recommendation: **{recommendation}**")
-
-    st.subheader("📉 Sensitivity Analysis")
-    sens = run_sensitivity_analysis(equity, horizon, irr)
-    st.dataframe(sens)
-
-    st.subheader("🎲 Monte Carlo Simulation")
-    mc_result = run_monte_carlo_simulation(equity, horizon, irr)
-    st.write(mc_result)
-
-    st.subheader("🧠 Solver Optimization")
-    st.write("Running optimization based on target IRR and constraints...")
-    optimal = solve_optimal_inputs(
-        objective_func=lambda x: abs(x[0] * 0.18 - target_irr),  # Dummy
-        initial_guess=[1.0],
-        bounds=[(0.1, 2.0)]
-    )
-    st.write("Optimal factor:", optimal.x[0])
-
-st.markdown("---")
-st.caption("Prototype powered by Streamlit · Python · Staiger & ULI methods")
+    # Optimization (if requested)
+    st.write("🧠 Optimizing project inputs...")
+    optimal = optimize_project(metrics)
+    st.json(optimal)
