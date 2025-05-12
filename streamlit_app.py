@@ -7,40 +7,39 @@ from utils.sensitivity import run_sensitivity_analysis
 from utils.monte_carlo import run_monte_carlo_simulation
 from utils.solver import optimize_project
 
-# --- CUSTOM LIGHT THEME CSS ---
+# === CUSTOM LIGHT THEME CSS ===
 st.markdown("""
     <style>
-    body {
-        background-color: #f4f6fa;
-        color: #222831;
+    html, body, [class*="css"] {
+        background-color: #f9f9fa;
+        color: #000000;
     }
     .stSlider > div[data-baseweb="slider"] > div {
-        background: #e3eaf2;
-        padding: 10px;
-        border-radius: 8px;
+        background: #e0e0e7;
+        padding: 8px;
+        border-radius: 10px;
     }
     .stRadio > div {
-        background-color: #e6edf5;
-        padding: 12px;
+        background-color: #ffffff;
         border-radius: 8px;
+        padding: 10px;
     }
     .block-container {
         padding-top: 2rem;
         padding-bottom: 2rem;
     }
     .info-box {
-        background-color: #e0e8f0;
+        background-color: #e7f0fe;
+        color: #222;
         padding: 1rem;
-        border-left: 5px solid #4a90e2;
-        margin-top: 1rem;
-        margin-bottom: 1rem;
+        border-left: 4px solid #2678c5;
+        margin: 1rem 0;
         border-radius: 6px;
-        color: #000000;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- TITLE & HEADER ---
+# === TITLE ===
 st.title("🏗️ Pre-Site Investment Evaluator")
 st.caption("Simulate ROI, cap on land and Go/No-Go recommendation — MVP 2025")
 
@@ -62,11 +61,11 @@ st.markdown("<div class='info-box'>📊 The model will use these inputs to simul
 # === SECTION 2: Development Use Mix ===
 st.subheader("2. Development Use Mix")
 st.write("Select development type:")
-dev_options = ["🏠 Residential", "🏨 Hospitality", "🏙️ Mixed-Use", "❓ I don’t know"]
+dev_options = ["🏠 Residential", "🏨 Hospitality", "🏙️ Mixed-Use", "❓ I’m not sure yet"]
 dev_choice = st.radio("", dev_options, index=0)
 
 benchmark_data = load_benchmark_data()
-if dev_choice != "❓ I don’t know":
+if dev_choice != "❓ I’m not sure yet":
     dev_key = dev_choice.split(" ")[1]
     st.markdown(f"<div class='info-box'>📈 Estimated market IRR for {dev_key}: {benchmark_data[dev_key]}%</div>", unsafe_allow_html=True)
 else:
@@ -77,23 +76,25 @@ else:
 st.subheader("3. Financial Evaluation")
 if st.button("🚀 Run Evaluation"):
     st.write("📡 Calculating financial metrics...")
-    
+
     metrics = calculate_metrics(equity_input, project_years, target_irr, dev_choice)
-
     st.success("✅ Metrics calculated!")
-    st.write(metrics)
+    st.json(metrics)
 
-    st.subheader("🔍 Sensitivity Analysis")
-    sensitivity_df = run_sensitivity_analysis(metrics)
-    st.dataframe(sensitivity_df)
+    st.write("📊 Sensitivity Analysis")
+    try:
+        sensitivity_df = run_sensitivity_analysis(metrics)
+        st.dataframe(sensitivity_df)
+    except Exception as e:
+        st.error(f"❌ Sensitivity analysis failed: {e}")
 
     decision = calc_go_nogo(metrics)
     st.markdown(f"🧭 Go/No-Go Recommendation: **{decision}**")
 
-    st.subheader("🎲 Monte Carlo Simulation")
+    st.write("🎲 Monte Carlo Simulation")
     simulation_results = run_monte_carlo_simulation(metrics)
     st.line_chart(simulation_results)
 
-    st.subheader("🧠 Solver-Based Optimization")
+    st.write("🧠 Optimization")
     optimal = optimize_project(metrics)
     st.json(optimal)
